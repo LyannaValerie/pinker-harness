@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import shutil
 import subprocess
 import tempfile
@@ -12,12 +13,17 @@ from pathlib import Path
 from typing import Any
 
 MARKER = "PINKER_AUTH_OK"
-CODEX = "codex-velina"
+DEVELOPMENT_USERS = frozenset({"amara", "velina"})
 
 
 @dataclass
 class Result:
     provider: str
+    task_os_user: str = "UNRESOLVED"
+    user_scoped_gh: str = "UNRESOLVED"
+    user_scoped_codex: str = "UNRESOLVED"
+    user_scoped_claude: str = "UNRESOLVED"
+    codex_login_status: str = "NOT_CHECKED"
     cli_version: str = "UNKNOWN"
     existing_auth_reused: bool = False
     subscription_login: str = "DISCARDED"
@@ -26,6 +32,21 @@ class Result:
     quota: str = "UNSUPPORTED"
     quota_detail: list[dict[str, Any]] | None = None
     error: str | None = None
+
+
+def provider_route(user: str | None = None) -> dict[str, str]:
+    task_os_user = user or pwd.getpwuid(os.getuid()).pw_name
+    if task_os_user not in DEVELOPMENT_USERS:
+        raise RuntimeError(
+            "BLOCK: usuário "
+            f"'{task_os_user}' não é participante autorizado do desenvolvimento Pinker"
+        )
+    return {
+        "task_os_user": task_os_user,
+        "user_scoped_gh": f"gh-{task_os_user}",
+        "user_scoped_codex": f"codex-{task_os_user}",
+        "user_scoped_claude": f"claude-{task_os_user}",
+    }
 
 
 def run(args: list[str], *, env=None, cwd=None, timeout=120):
@@ -94,11 +115,11 @@ def anthropic_subscription_env() -> dict[str, str]:
     return env
 
 
-def verify_codex() -> tuple[bool, str]:
+def verify_codex(codex: str) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix="pinker-harness-p0-") as cwd:
         cp = run(
             [
-                CODEX,
+                codex,
                 "exec",
                 "--ephemeral",
                 "--ignore-user-config",
@@ -125,11 +146,11 @@ def verify_codex() -> tuple[bool, str]:
     return True, "UNAVAILABLE"
 
 
-def verify_claude(env: dict[str, str]) -> tuple[bool, str]:
+def verify_claude(claude: str, env: dict[str, str]) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix="pinker-harness-p0-") as cwd:
         cp = run(
             [
-                "claude",
+                claude,
                 "-p",
                 f"Responda somente com {MARKER}. Não use ferramentas.",
                 "--output-format",
@@ -147,7 +168,7 @@ def verify_claude(env: dict[str, str]) -> tuple[bool, str]:
         return True, "UNAVAILABLE"
 
 
-def codex_quota() -> tuple[str, list[dict[str, Any]] | None]:
+def codex_quota(codex: str) -> tuple[str, list[dict[str, Any]] | None]:
     messages = [
         {
             "method": "initialize",
@@ -166,7 +187,7 @@ def codex_quota() -> tuple[str, list[dict[str, Any]] | None]:
     wire = "".join(json.dumps(message) + "\n" for message in messages)
     try:
         cp = subprocess.run(
-            [CODEX, "app-server", "--stdio"],
+            [codex, "app-server", "--stdio"],
             input=wire,
             text=True,
             stdout=subprocess.PIPE,
@@ -225,46 +246,64 @@ def codex_quota() -> tuple[str, list[dict[str, Any]] | None]:
     return " | ".join(label(window) for window in windows), windows
 
 
-def probe_openai() -> Result:
-    out = Result(provider="OpenAI")
-    if shutil.which(CODEX) is None:
-        out.error = f"{CODEX} não encontrado no PATH"
-        return out
-
-    out.cli_version = version(CODEX)
-    status = run([CODEX, "login", "status"], timeout=30)
+def codex_login_status(codex: str) -> str:
+    if shutil.which(codex) is None:
+        return "USER_SCOPED_WRAPPER_MISSING"
+    status = run([codex, "login", "status"], timeout=30)
     chatgpt = status.returncode == 0 and "chatgpt" in (
         f"{status.stdout}\n{status.stderr}".casefold()
     )
+    return "PASS" if chatgpt else "USER_SCOPED_AUTH_FAILURE"
 
-    if chatgpt:
+
+def routed_result(provider: str) -> Result:
+    out = Result(provider=provider)
+    try:
+        route = provider_route()
+    except RuntimeError as error:
+        out.error = str(error)
+        return out
+    for field, value in route.items():
+        setattr(out, field, value)
+    out.codex_login_status = codex_login_status(out.user_scoped_codex)
+    return out
+
+
+def probe_openai() -> Result:
+    out = routed_result("OpenAI")
+    if out.error:
+        return out
+    codex = out.user_scoped_codex
+    if out.codex_login_status == "USER_SCOPED_WRAPPER_MISSING":
+        out.error = f"USER_SCOPED_WRAPPER_MISSING: {codex} não encontrado no PATH"
+        return out
+
+    out.cli_version = version(codex)
+    if out.codex_login_status == "PASS":
         out.existing_auth_reused = True
     else:
         print("Abrindo login oficial do ChatGPT/Codex...")
-        if subprocess.run([CODEX, "login"], check=False).returncode != 0:
-            out.error = "login oficial do Codex falhou"
+        if subprocess.run([codex, "login"], check=False).returncode != 0:
+            out.error = "USER_SCOPED_AUTH_FAILURE: login oficial do Codex falhou"
             return out
-        status = run([CODEX, "login", "status"], timeout=30)
-        chatgpt = status.returncode == 0 and "chatgpt" in (
-            f"{status.stdout}\n{status.stderr}".casefold()
-        )
-        if not chatgpt:
-            out.error = "Codex não confirmou autenticação via ChatGPT"
+        out.codex_login_status = codex_login_status(codex)
+        if out.codex_login_status != "PASS":
+            out.error = "USER_SCOPED_AUTH_FAILURE: Codex não confirmou autenticação via ChatGPT"
             return out
 
-    ok, out.model = verify_codex()
+    ok, out.model = verify_codex(codex)
     if not ok:
         out.error = "login existe, mas a chamada mínima falhou"
         return out
 
     out.subscription_login = "PASS"
     out.request_verified = True
-    out.quota, out.quota_detail = codex_quota()
+    out.quota, out.quota_detail = codex_quota(codex)
     return out
 
 
-def claude_status(env: dict[str, str]) -> bool:
-    cp = run(["claude", "auth", "status"], env=env, timeout=30)
+def claude_status(claude: str, env: dict[str, str]) -> bool:
+    cp = run([claude, "auth", "status"], env=env, timeout=30)
     try:
         payload = json.loads(cp.stdout)
     except json.JSONDecodeError:
@@ -279,28 +318,31 @@ def claude_status(env: dict[str, str]) -> bool:
 
 
 def probe_anthropic() -> Result:
-    out = Result(provider="Anthropic")
-    if shutil.which("claude") is None:
-        out.error = "claude não encontrado no PATH"
+    out = routed_result("Anthropic")
+    if out.error:
+        return out
+    claude = out.user_scoped_claude
+    if shutil.which(claude) is None:
+        out.error = f"USER_SCOPED_WRAPPER_MISSING: {claude} não encontrado no PATH"
         return out
 
-    out.cli_version = version("claude")
+    out.cli_version = version(claude)
     env = anthropic_subscription_env()
 
-    if claude_status(env):
+    if claude_status(claude, env):
         out.existing_auth_reused = True
     else:
         print("Abrindo login oficial da assinatura Claude...")
         if subprocess.run(
-            ["claude", "auth", "login"], env=env, check=False
+            [claude, "auth", "login"], env=env, check=False
         ).returncode != 0:
-            out.error = "login oficial do Claude Code falhou"
+            out.error = "USER_SCOPED_AUTH_FAILURE: login oficial do Claude Code falhou"
             return out
-        if not claude_status(env):
-            out.error = "Claude Code não confirmou autenticação de assinatura"
+        if not claude_status(claude, env):
+            out.error = "USER_SCOPED_AUTH_FAILURE: Claude Code não confirmou autenticação de assinatura"
             return out
 
-    ok, out.model = verify_claude(env)
+    ok, out.model = verify_claude(claude, env)
     if not ok:
         out.error = "login existe, mas a chamada mínima falhou"
         return out

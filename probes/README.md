@@ -17,6 +17,11 @@ O probe oferece inicialmente:
 - OpenAI via Codex CLI;
 - Anthropic via Claude Code.
 
+Ele deriva o usuário do sistema da Task, permite apenas `amara` e `velina`, e
+usa exclusivamente `codex-<usuário>` e `claude-<usuário>` como rotas de
+credencial. A evidência registra também os wrappers resolvidos e o status de
+login do Codex.
+
 Ele prefere reutilizar a autenticação oficial já existente no CLI. Se ela não existir, invoca o fluxo oficial de login do próprio provider. Depois do login, faz uma chamada mínima real para provar que a assinatura está utilizável.
 
 A API não é fallback do P0. Ela será validada separadamente.
