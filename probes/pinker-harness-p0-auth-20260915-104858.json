@@ -1,0 +1,11 @@
+{
+  "provider": "OpenAI",
+  "cli_version": "codex-cli 0.153.4",
+  "existing_auth_reused": true,
+  "subscription_login": "PASS",
+  "request_verified": true,
+  "model": "UNAVAILABLE",
+  "quota": "UNAVAILABLE",
+  "quota_detail": null,
+  "error": null
+}

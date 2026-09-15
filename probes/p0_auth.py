@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 MARKER = "PINKER_AUTH_OK"
+CODEX = "codex-velina"
 
 
 @dataclass
@@ -97,7 +98,7 @@ def verify_codex() -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix="pinker-harness-p0-") as cwd:
         cp = run(
             [
-                "codex",
+                CODEX,
                 "exec",
                 "--ephemeral",
                 "--ignore-user-config",
@@ -165,7 +166,7 @@ def codex_quota() -> tuple[str, list[dict[str, Any]] | None]:
     wire = "".join(json.dumps(message) + "\n" for message in messages)
     try:
         cp = subprocess.run(
-            ["codex", "app-server", "--stdio"],
+            [CODEX, "app-server", "--stdio"],
             input=wire,
             text=True,
             stdout=subprocess.PIPE,
@@ -226,12 +227,12 @@ def codex_quota() -> tuple[str, list[dict[str, Any]] | None]:
 
 def probe_openai() -> Result:
     out = Result(provider="OpenAI")
-    if shutil.which("codex") is None:
-        out.error = "codex não encontrado no PATH"
+    if shutil.which(CODEX) is None:
+        out.error = f"{CODEX} não encontrado no PATH"
         return out
 
-    out.cli_version = version("codex")
-    status = run(["codex", "login", "status"], timeout=30)
+    out.cli_version = version(CODEX)
+    status = run([CODEX, "login", "status"], timeout=30)
     chatgpt = status.returncode == 0 and "chatgpt" in (
         f"{status.stdout}\n{status.stderr}".casefold()
     )
@@ -240,10 +241,10 @@ def probe_openai() -> Result:
         out.existing_auth_reused = True
     else:
         print("Abrindo login oficial do ChatGPT/Codex...")
-        if subprocess.run(["codex", "login"], check=False).returncode != 0:
+        if subprocess.run([CODEX, "login"], check=False).returncode != 0:
             out.error = "login oficial do Codex falhou"
             return out
-        status = run(["codex", "login", "status"], timeout=30)
+        status = run([CODEX, "login", "status"], timeout=30)
         chatgpt = status.returncode == 0 and "chatgpt" in (
             f"{status.stdout}\n{status.stderr}".casefold()
         )
