@@ -1,6 +1,6 @@
 # Arquitetura proposta do Pinker Harness
 
-Status: **PROPOSTA PARA DECISÃO DA FOUNDER**. Documento preparado em 2026-09-15 a partir das autoridades e do código abaixo. Define a recomendação de arquitetura; não declara H0.1–H0.7 executados nem altera contratos vigentes por mera existência.
+Status: **PROPOSTA COM DIRETRIZES DE PERSISTÊNCIA ACEITAS PELA FOUNDER**. Documento preparado em 2026-09-15 a partir das autoridades e do código abaixo. Em continuidade, a Founder aceitou estado persistente, com supervisor duradouro condicionado à necessidade, e determinou recuperação seletiva orientada a Tasks e ausência de arquivos operacionais Markdown. A seção 16 registra essas diretrizes e distingue as propostas de mecanismo ainda sujeitas a validação. O documento não declara H0.1–H0.7 executados nem aprovação integral de todas as escolhas de implementação.
 
 ## 1. Base factual e precedência
 
@@ -243,7 +243,7 @@ Preferir **SQLite como armazenamento transacional do journal da Task e de suas p
 
 Um escritor confiável por Task atualiza eventos e projeções numa transação. Event journal é append-only na API normal; checkpoint aponta para `journal_seq`, versão e hash do contrato. JSON/JSONL são formatos de exportação/intercâmbio, não uma segunda fonte de verdade gravada em paralelo. A escolha de modo de journal e sincronização do SQLite depende do filesystem real; não presumir suporte adequado em armazenamento remoto.
 
-Artefatos maiores ficam em arquivos referenciados por hash. Publicar arquivo completo e durável antes de registrar a referência; uma queda pode deixar artefato órfão recuperável, não receipt apontando a arquivo parcial. Exportar checkpoint por escrita temporária + substituição atômica no mesmo filesystem. Retenção segue Forja/Task; falha de armazenamento impede continuar uma mutação que exija evidência durável. `/tmp` não é destino final aceitável para continuidade.
+Artefatos maiores ficam em arquivos referenciados por hash. Publicar arquivo completo e durável antes de registrar a referência; uma queda pode deixar artefato órfão recuperável, não receipt apontando a arquivo parcial. Exportar checkpoint por escrita temporária + substituição atômica no mesmo filesystem. Retenção segue Forja/Task; falha de armazenamento impede continuar uma mutação que exija evidência durável. `/tmp` não é destino final aceitável para continuidade. Conforme decisão posterior da Founder, nenhum estado, prompt persistido, contrato operacional ou memória próprios do harness será armazenado em `.md`; ver seção 16.
 
 Envelope mínimo de evento: versão, `event_id`, `task_id`, generation, sessão, sequência, tipo, instante UTC, emissor, correlação de operação, contrato/policy, fatos e referências de evidência. Duração e timeout usam relógio monotônico; ordem e causalidade não dependem só do relógio de parede.
 
@@ -379,4 +379,191 @@ As decisões novas para revisão são: monólito modular Python; separação exp
 
 Continuam em aberto, com gates identificados: mecanismo concreto da Forja para troca de identidade e revogação, fronteira efetiva de credenciais/ferramentas, transporte Claude com interação e enforcement exigidos, observabilidade local de quota/modelo e integração exata com Trama/Book/Guardião. São perguntas do inventário com efeito direto sobre a implementação.
 
-O primeiro avanço recomendado é resolver a fronteira de identidade da PR #5 e fechar H0.1/H0.2. A partir disso, H0.3 deve entregar uma Task real, interativa, observável e retomável; o refinamento visual da TUI acompanha a maturidade desse caminho.
+O primeiro avanço recomendado é resolver a fronteira de identidade da PR #5 e fechar H0.1/H0.2, incluindo os requisitos da seção 16. A partir disso, H0.3 deve entregar uma Task real, interativa, observável e retomável; o refinamento visual da TUI acompanha a maturidade desse caminho.
+
+## 16. Continuidade aceita, recuperação seletiva e espaço reservado a POT/LPT
+
+Esta seção registra o direcionamento da Founder após a primeira proposta. O objetivo é que o agente acesse contexto suficiente para continuar a Task com pouco consumo de tokens, sem varrer relatos extensos nem adivinhar o significado de registros anteriores. O desenho de POT/LPT continua sob desenvolvimento da Founder; esta atualização não define sua gramática nem implementa essas linguagens.
+
+### 16.1 Decisões e propostas separadas
+
+| Diretriz | Situação |
+| --- | --- |
+| Estado persistente desde a fundação; supervisor duradouro quando a função justificar | Aceita pela Founder. |
+| Harness voltado integralmente a Tasks, com consulta seletiva e retomada entre sessões/contas e após reinício | Requisito expresso pela Founder. |
+| Nenhum arquivo operacional próprio em Markdown, inclusive o equivalente funcional de AGENTS.md/CLAUDE.md | Requisito expresso pela Founder. |
+| Preferir registro determinístico; o agente principal pode fornecer registros segundo padrão obrigatório | Preferência expressa pela Founder. |
+| Agente registrador dedicado | Ideia considerada, não dependência aprovada nem componente obrigatório. |
+| LPT contida em POT e usada para suas descrições | Relação conceitual fornecida pela Founder; sem semântica formal definida. |
+| Consulta estruturada, grafo de obrigações, projeções e registro automático descritos abaixo | Propostas de mecanismo para atender os requisitos. |
+
+### 16.2 O Book existente já resolve parte da recuperação
+
+Inspeção adicional: Book em `9cda7ea775631ba11811b0c999ec2fca7775eb71`, incluindo `AGENTS.md`, README, modelo de dados, protocolo de agentes e módulos de busca, índice, views, Tasks, percursos e ladders. Pinker Prosa em `2653564c6f395b6efd0f994411fbde0c1d3de724`, incluindo `AGENTS.md`, contrato de tradução e critério de fidelidade. Esta inspeção foi de código/documentos; não reexecutou o Book na Forja nem alterou esses repositórios.
+
+| Capacidade | Confirmado no código/documentação do Book | Limite para o harness |
+| --- | --- | --- |
+| Busca compacta | `search` retorna IDs, título, score, pistas, escopo, revisão e views; aceita `--within` e `--limit`. | Correspondência lexical não prova aplicabilidade à candidata atual. |
+| Leitura incremental | `show <ID> --metadata` antes de `show <ID>`; relações e referências tipadas. | A CLI examinada não oferece seleção arbitrária de campos do caso por `--fields`. |
+| Estado curto de investigação | `known`, `hypotheses`, `missing`, `next_probe` e receipt. | Estado epistemológico do Book não é checkpoint nem ownership da Task externa. |
+| Associação externa | `external_task_ref` em `pinker:<task-id>`; Book gera seu próprio ID `T-...`. | Nunca reutilizar o ID da Forja como se fosse o ID interno do Book. |
+| Percursos e procedimentos | Paths derivados; ProbeLadders com precondições, ramos, paradas e validação terminal. | Ladder é dado e não executa instruções automaticamente; não equivale a uma LPT formal já existente. |
+| Índice | SQLite/FTS derivado, com fallback lexical canônico quando ausente/inválido. | Não confundir o índice descartável do Book com o journal durável proposto para o harness. |
+| Encerramento | `task finish` registra `finished` sem exigir `validation.passed`. | `finished` no Book não satisfaz o gate `COMPLETED` da Task do harness. |
+
+Fontes: [busca](https://github.com/LyannaValerie/book/blob/9cda7ea775631ba11811b0c999ec2fca7775eb71/booklib/search.py), [views](https://github.com/LyannaValerie/book/blob/9cda7ea775631ba11811b0c999ec2fca7775eb71/booklib/views.py), [Tasks](https://github.com/LyannaValerie/book/blob/9cda7ea775631ba11811b0c999ec2fca7775eb71/booklib/tasks.py), [protocolo](https://github.com/LyannaValerie/book/blob/9cda7ea775631ba11811b0c999ec2fca7775eb71/docs/agent-protocol.md).
+
+O protocolo do Book já determina: navegar por views quando não houver query, recuperar seletivamente, registrar a lacuna, parar a recuperação quando existir um probe autorizado e discriminativo e continuar a investigação ordinária diante de busca vazia. Portanto, o harness deve consumir essas capacidades e acrescentar a coordenação da Task que falta, sem reconstruir o Book.
+
+### 16.3 Acesso direto antes de busca textual
+
+O modelo não deve receber o armazenamento inteiro. Uma ferramenta executa a consulta fora do contexto do modelo e devolve somente a projeção solicitada. O programa pode percorrer índices/arquivos localmente sem que seus bytes se tornem tokens do prompt; há custo de CPU/I/O, mas os tokens dependem do conteúdo efetivamente enviado ao provider.
+
+Primeiro resolver a Task por ID estável, projeto e vínculo da Forja. Depois consultar status, revisão de contrato, checkpoint referenciado, validade da retomada e próximas obrigações. Esta é uma consulta exata, não busca aproximada de palavras do histórico. Uma referência conhecida deve ser resolvida diretamente.
+
+Interface conceitual ilustrativa, **ainda não implementada e sem congelar nomes públicos**:
+
+```json
+{
+  "operation": "task.read",
+  "task_id": "X0",
+  "fields": ["status", "contract_revision", "resume", "obligation_counts", "next_obligations"],
+  "max_bytes": 4096
+}
+```
+
+O limite acima é exemplo, não orçamento universal. O retorno declara campos omitidos, referências adicionais e `truncated`. Não omitir silenciosamente uma proibição ou invariante necessária para executar. Se o contrato mínimo não couber, reduzir o escopo da ação ou dividir a Task.
+
+O pacote inicial inclui a revisão do contrato vigente: ler somente status e ponteiro do checkpoint não basta para autorizar execução. O conteúdo completo de diffs, logs e casos só entra no contexto quando solicitado e necessário.
+
+### 16.4 Como buscar quando falta informação
+
+| Informação faltante | Chave/sinal preferido | Autoridade |
+| --- | --- | --- |
+| Onde a Task parou | Task ID, obrigação ID, contrato/generation | Harness, referenciado à Forja. |
+| Qual arquivo/símbolo foi alterado | Repositório, path, símbolo, SHA e referência do diff | Git; vínculo da obrigação no harness. |
+| Onde fica a responsabilidade na Pinker | Âncora semântica existente | Trama. |
+| Dificuldade anterior semelhante | Case ID, sintoma, diagnóstico, componente, backend e condições | Book. |
+| Por que uma decisão foi tomada | ID da decisão e sua fonte/evidência | Registro factual da Task. |
+| Qual ambiente/processo deve ser recuperado | Checkpoint e binding da Task | Forja. |
+
+Linhas são coordenadas de uma versão, não identidades permanentes. Uma referência a U1..Un precisa de repositório/path e snapshot; quando existir, associar âncora Trama/símbolo. Nunca inventar âncora para preencher o registro. Hash localiza e confere conteúdo; não substitui uma pista semântica.
+
+Busca por significado exige vocabulário recuperável: registrar componente/conceito, termos exatos de diagnóstico e pistas conhecidas. Não esperar que um agente futuro adivinhe uma palavra escolhida pelo anterior. Referências tipadas são resolvidas como referências; expressões de código são preservadas como literais em campo próprio. Não espremer `::`, `->`, paths ou IDs num mecanismo lexical que descarte sua estrutura.
+
+No Book examinado, `normalize_tokens` faz casefold, remove acentos e usa `[a-z0-9]+(?:[._-][a-z0-9]+)*`. Isso aproxima `semântica` de `semantica`, mas não torna automaticamente `semantic`, `semantics` e `semântica` equivalentes. `::` e `->` não são tokens lexicais desse normalizador. Aliases precisam de origem explícita, por exemplo cues de casos mantidos pela interface do Book ou vocabulário canônico de Trama, sem nova cartografia paralela.
+
+Exemplos de comandos que já existem no Book; parâmetros entre sinais de menor/maior são posições a preencher, não comandos prontos:
+
+```text
+python3 book.py list
+python3 book.py search "<sintoma e componente>" --within <view-existente> --limit 5
+python3 book.py show <B-ID-encontrado> --metadata
+python3 book.py show <B-ID-encontrado>
+python3 book.py references <B-ID-encontrado> --depth 1
+```
+
+Para resultados do Book cujo corpo seja necessário, a ponte pode extrair uma projeção para o modelo após ler pela interface canônica, preservando revisão, provenance, confiança e omissões. Isso é projeção de transporte no harness; não afirmar que existe hoje um `book show --fields`. O recibo do Book mede os bytes por ele servidos; o harness mede separadamente os bytes/tokens realmente encaminhados ao modelo.
+
+### 16.5 Recuperação orientada à próxima decisão
+
+Cada recuperação deve declarar o que falta para a próxima ação. Exemplo: saber qual gate falhou, em qual candidata, e se o resultado continua válido. O retorno útil contém o fato, sua fonte, validade, referências e a obrigação que ele ajuda a resolver.
+
+Fluxo proposto: chave exata → metadados/candidatos compactos → conteúdo selecionado → verificação de suficiência. Apenas se necessário: uma expansão delimitada por relação ou vocabulário existente → consulta da fonte atual/probe discriminativo. O número de expansões e o orçamento são configuráveis por Task; não usar retries ilimitados da mesma busca.
+
+Resultados distintos: `FOUND`, `NO_MATCH`, `AMBIGUOUS`, `STALE`, `SOURCE_UNAVAILABLE`, `INSUFFICIENT`, `BUDGET_EXCEEDED`. Índice desatualizado e autoridade ausente não são “nada encontrado”. Ausência no histórico não prova ausência no código. Registrar buscas negativas com query, escopo e revisão para evitar repetição, invalidando-as quando as fontes mudarem.
+
+Critério de suficiência: objetivo da próxima ação, precondições, invariantes/limites, fonte atual e observável de verificação estão disponíveis. Se faltar um deles, registrar precisamente a lacuna. A ferramenta pode verificar presença, integridade e validade estrutural; o modelo continua responsável pelo julgamento semântico que não tenha verificador específico. Se o problema não foi resolvido no passado, o próximo passo pode ser um probe para distinguir hipóteses, não uma solução histórica inexistente.
+
+### 16.6 Registro determinístico com autoria semântica delimitada
+
+O padrão recomendado não exige um agente registrador permanente. O controlador registra automaticamente o que observa: operações, início/término, códigos de saída, alterações, snapshots, chamadas de autoridade, transferências e validações. O agente principal propõe informação semântica curta: responsabilidade alterada, finding, hipótese, justificativa pública e próxima lacuna. Não há extração ou armazenamento de raciocínio privado.
+
+Essas propostas passam por uma interface de registro com schema, identidade real do emissor, referências, versão esperada, limites de tamanho e chave de idempotência. O agente não edita diretamente o JSON canônico/journal para marcar a própria tarefa completa. O controlador valida e registra a transição; informação não demonstrável permanece `ASSERTED`, `HYPOTHESIS` ou equivalente explícito.
+
+Um diff não revela deterministicamente todo o significado de uma alteração; schema válido também não prova verdade. Registrar automaticamente fatos mecânicos e exigir evidências/validação para alegações semânticas resolve essa fronteira sem delegar toda a memória a outro LLM. Um registrador por IA pode ser experimento posterior, com consumo medido e revisão de fidelidade, sem ser necessário para concluir um checkpoint.
+
+### 16.7 Partes do prompt como obrigações rastreáveis
+
+A Task precisa nascer com obrigações identificadas e vinculadas aos trechos/revisões do contrato. Um prompt arbitrário não se transforma deterministicamente em um plano sem ambiguidades só porque foi salvo em JSON. A decomposição pode ser proposta pelo agente; deve preservar todos os requisitos, tornar lacunas explícitas e ser admitida pelo contrato H0.2 antes de governar execução.
+
+Cada obrigação registra dependências, precondições, critério de aceite, verificador/evidência, estado e identidade da candidata. Ramificações registram condição avaliada e evidência; condição desconhecida não equivale a falsa. Repetições mantêm instâncias/itens e cobertura, não apenas uma marca global “loop concluído”. Não se define aqui sintaxe LPT para representá-las.
+
+Estados de obrigação propostos: `PENDING`, `IN_PROGRESS`, `SATISFIED`, `BLOCKED`, `STALE` e `NOT_APPLICABLE` com justificativa autorizada. `REQUIREMENT_NOT_MET_YET` pode ser apresentado como descrição de uma obrigação pendente/bloqueada, sem competir com o lifecycle da Task. Exibir “3 de 5 obrigações satisfeitas” é contagem; não equivale a 60% de esforço, tempo ou conclusão verificável se as três estiverem stale.
+
+`COMPLETED` exige todas as obrigações aplicáveis satisfeitas por evidências válidas, gates/revisões exigidos e reconciliação. Relato do agente, última linha do arquivo e `finished` no Book não substituem esse cálculo.
+
+Exemplo de projeção de retomada; IDs, nomes e valores são ilustrativos, não um schema POT/LPT nem estado factual de uma Task existente:
+
+```json
+{
+  "task_id": "X0",
+  "status": "PAUSED",
+  "contract_revision": 3,
+  "resume": {
+    "state": "RECONCILIATION_REQUIRED",
+    "reason": "QUOTA_EXHAUSTED",
+    "forja_checkpoint_ref": "checkpoint-X0-7",
+    "journal_seq": 84
+  },
+  "obligation_counts": {"satisfied": 2, "pending": 1},
+  "next_obligations": [{"id": "R3", "goal": "validar a candidata", "evidence": []}],
+  "book_case_refs": [],
+  "trama_refs": []
+}
+```
+
+Esse retorno é uma projeção de leitura; os campos não apresentados continuam no armazenamento canônico. Referências vazias são preferíveis a referências inventadas.
+
+### 16.8 Retomar após quota, troca ou queda de energia
+
+| Situação | Procedimento |
+| --- | --- |
+| Quota esgotada; Founder prefere esperar | Pausar, preservar estado e registrar espera. Reset previsto aciona rechecagem, não prova disponibilidade. Retomar com a mesma conta/provider quando solicitado ou previamente autorizado. |
+| Quota esgotada; Founder escolhe outro agente | Transferência da seção 8: origem quiescente, identidade/ownership corretos, evidência reconciliada e mesmo contrato/obrigações. |
+| Reinício da Forja/queda de energia | Descobrir Tasks não terminais por índice durável; conferir Forja, geração, arquivos/índice Git, artefatos e operações pendentes; projetar estado recuperado antes de propor retomada. |
+| Estado de efeito remoto inconclusivo | Consultar a autoridade do efeito. Se impossível estabelecer resultado, bloquear repetição mutável e registrar `UNKNOWN_EFFECT`. |
+
+“Mesmo agente” precisa de precisão: a mesma conta/provider/papel pode retomar em nova sessão. Se a sessão original ainda existir, o adapter pode ter capacidade de continuar aquela conversa, mas a correção da retomada não depende disso. No desenho padrão, a sessão nova recebe contrato e pacote factual; não exige transcript antigo nem memória interna do modelo.
+
+Retomada não promete voltar à instrução de CPU ou geração de token interrompida. Volta ao último estado durável reconciliável e à primeira obrigação ainda não comprovada. Teste interrompido pode precisar ser executado novamente; ação remota que talvez tenha ocorrido precisa de reconciliação antes de retry. Intent durável antes de efeitos, escrita transacional e persistência efetiva reduzem a janela de perda, sem prometer “exactly once” distribuído.
+
+O ponteiro do checkpoint da Forja não basta se arquivo, volume ou permissões não sobreviverem ao reinício. O inventário deve provar localização durável, atomicidade/sincronização, recuperação e política de backup existente. Perda física de dados não é resolvida por JSON ou SQLite; essa proteção pertence ao contrato de armazenamento/Forja, não a reconstrução imaginada pelo agente.
+
+### 16.9 Continuar, depois ou abandonar
+
+Ao reabrir a interface, apresentar Tasks interrompidas com identificação inequívoca e resumo compacto, por exemplo: “Task X0 interrompida; 2 de 3 obrigações satisfeitas; falta validação da candidata. Continuar?”. Não mostrar essa pergunta repetidamente se já houver autorização vigente para retomar.
+
+| Resposta | Estado e efeitos |
+| --- | --- |
+| Continuar | Reconciliar e retomar; se houver ambiguidade de identidade/efeito, informar o bloqueio específico. |
+| Depois | Manter checkpoint e fatos da execução intactos. Eventual preferência de interface fica separada, sem avançar a Task nem reescrever seus resultados. |
+| Não tenho mais interesse | Registrar decisão humana, interromper/reconciliar processos e então transicionar para `ABORTED`. Não apagar histórico, arquivos, commits ou artefatos. |
+
+Se a interrupção/reconciliação ainda não terminou, usar um estado intermediário de cancelamento solicitado, sem anunciar `ABORTED` como se não houvesse atividade remanescente. Uma Task abortada não é uma solução validada por ter terminado; fatos parciais comprovados podem permanecer úteis com seu escopo explícito. Reabertura posterior exige decisão explícita e nova revisão/generation apropriada, preservando o evento de abandono.
+
+### 16.10 Formatos operacionais e POT/LPT
+
+Nenhum arquivo operacional produzido pelo harness será `.md`, incluindo configuração equivalente à de AGENTS.md/CLAUDE.md, contratos de execução, prompts persistidos, checkpoints, relatos de continuidade e memória operacional. A proposta inicial é JSON para contratos/configuração/intercâmbio, SQLite para journal/projeções e JSONL para exportações; extensões e serialização de POT/LPT ficam para sua definição futura.
+
+Markdown pode continuar em documentação humana do repositório, como este desenho; essa documentação não será carregada como memória operacional de retomada nem terá um “espelho” operacional Markdown. O requisito não autoriza apagar AGENTS.md de repositórios externos nem ignorar seus contratos. O harness deve consumir instruções aplicáveis preservando autoridade e rastreabilidade, sem criar equivalentes próprios nesses formatos proibidos.
+
+Adapters precisam provar que conseguem fornecer configuração/instruções por superfície oficial não Markdown, sem gerar um arquivo operacional `.md` como fallback oculto. Se uma superfície exigir esse arquivo, registrar incompatibilidade e escolher outra superfície suportada; não relaxar silenciosamente a decisão da Founder. Configurações e prompts próprios devem permanecer fora do cache de autenticação e sob os controles de mutabilidade da seção 10.
+
+POT/LPT são uma hipótese de representação operacional precisa e compacta, não uma compressão arbitrariamente garantida. Prompts comuns já podem expressar condicionais, iterações e parâmetros; o ganho buscado está em convenções estáveis, semântica explícita, referências, validação e eliminação de repetição. Menos linhas não implica menos tokens nem fidelidade preservada.
+
+O [contrato do Pinker Prosa](https://github.com/LyannaValerie/pinker-prosa/blob/2653564c6f395b6efd0f994411fbde0c1d3de724/metodo/contrato-de-traducao.md) já exige preservar casos, fluxo, erros e invariantes, e pergunta se é possível seguir a descrição produzindo uma implementação errada. A transposição sugerida para avaliar contexto é: **duas retomadas materialmente incompatíveis ainda seriam compatíveis com o registro?** Se sim, falta informação ou precisão.
+
+Dez mil linhas repetitivas podem admitir uma projeção muito menor; dez mil fatos independentes necessários à próxima decisão não podem ser descartados com garantia de recuperação. Referenciar um diff/artefato retira seu corpo do pacote inicial, mas preserva a necessidade de consultá-lo quando ele importar. Uma expansão LPT que reintroduza todo o texto antes de enviá-lo ao modelo não economiza aqueles tokens.
+
+O uso contextual deve descrever fatos e relações observadas, distinguindo-os de obrigações autorizadas. Nenhuma expressão imperativa em um caso histórico ou registro POT pode executar ações ou ganhar autoridade de contrato. O harness conserva fatos estruturados e evidências; uma representação futura POT/LPT terá versão e provenance, com projeções regeneráveis quando possível, sem duplicar autoridade entre texto e JSON. Qual será a forma canônica final é decisão futura; não manter duas fontes normativas editáveis em paralelo.
+
+### 16.11 Aceite adicional para H0
+
+- H0.2: formalizar consulta por campos, schema de registros, migração de estados, obrigações e distinção entre evidência observada e alegação; testar registros inválidos, stale e tentativa de autoaprovação.
+- H0.3: demonstrar recuperação da próxima obrigação com pacote limitado, sem transcript ou arquivos operacionais `.md`; permitir pausa e retomada pela mesma conta.
+- H0.5: provar busca seletiva no Book e resolução de Trama/Git com proveniência, casos sem resultado e fonte indisponível; separar bytes do Book de bytes servidos ao modelo.
+- H0.6: provar espera por reset, troca de executor e reinício com escrita parcialmente concluída/efeito inconclusivo; “depois” preserva a Task e abandono conserva evidências.
+- H0.7: medir tokens reais quando observáveis, repetição de buscas, taxa de retomada correta, omissões de invariantes e falsos `COMPLETED`; comparar pacotes compactos com referências completas em cenários equivalentes. Não usar redução de linhas como único critério.
+
+A implementação inicial não depende de finalizar POT/LPT: o registro factual estruturado, a seleção de contexto e a recuperação da Task podem existir primeiro. O trabalho posterior da Founder pode introduzir sua representação sem substituir a prova dos fatos nem exigir um agente registrador permanente.
