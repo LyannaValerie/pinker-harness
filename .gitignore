@@ -1,0 +1,4 @@
+# Defense in depth only: probes must write runtime evidence outside this checkout.
+pinker-harness-p0-*.json
+probes/pinker-harness-p0-*.json
+probes/__pycache__/
