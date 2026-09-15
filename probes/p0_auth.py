@@ -324,15 +324,9 @@ def save(result: Result) -> Path:
 
 
 def main() -> int:
+    print("P0 — autenticação por assinatura")
+    print("API será validada em probe separado; não existe fallback silencioso.")
     provider = choose("Provider:", ["OpenAI", "Anthropic"])
-    mode = choose("Uso:", ["Subscription account", "API"])
-
-    if mode == 1:
-        print(
-            "API não pertence ao gate P0_SUBSCRIPTION; "
-            "nenhuma autenticação foi alterada."
-        )
-        return 3
 
     result = probe_openai() if provider == 0 else probe_anthropic()
     evidence = save(result)
