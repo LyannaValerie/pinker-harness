@@ -26,7 +26,9 @@ class Result:
     codex_login_status: str = "NOT_CHECKED"
     cli_version: str = "UNKNOWN"
     existing_auth_reused: bool = False
-    subscription_login: str = "DISCARDED"
+    subscription_login: str = "NOT_AUTHENTICATED"
+    availability: str = "UNKNOWN"
+    request_status: str = "NOT_ATTEMPTED"
     request_verified: bool = False
     model: str = "UNAVAILABLE"
     quota: str = "UNSUPPORTED"
@@ -47,6 +49,26 @@ def provider_route(user: str | None = None) -> dict[str, str]:
         "user_scoped_codex": f"codex-{task_os_user}",
         "user_scoped_claude": f"claude-{task_os_user}",
     }
+
+
+def artifact_root(
+    *, environment: dict[str, str] | None = None, checkout: Path | None = None
+) -> Path:
+    """Return an external runtime-evidence root; never fall back into Git."""
+    environment = os.environ if environment is None else environment
+    checkout = (checkout or Path(__file__).resolve().parents[1]).resolve()
+    root = Path(
+        environment.get(
+            "PINKER_HARNESS_ARTIFACT_ROOT",
+            str(Path(tempfile.gettempdir()) / "pinker-harness-artifacts"),
+        )
+    ).expanduser().resolve()
+    try:
+        root.relative_to(checkout)
+    except ValueError:
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    raise RuntimeError("RUNTIME_EVIDENCE_MUST_NOT_FALL_BACK_TO_REPOSITORY")
 
 
 def run(args: list[str], *, env=None, cwd=None, timeout=120):
@@ -291,12 +313,15 @@ def probe_openai() -> Result:
             out.error = "USER_SCOPED_AUTH_FAILURE: Codex não confirmou autenticação via ChatGPT"
             return out
 
+    out.subscription_login = "PASS"
     ok, out.model = verify_codex(codex)
     if not ok:
+        out.request_status = "FAILED"
         out.error = "login existe, mas a chamada mínima falhou"
         return out
 
-    out.subscription_login = "PASS"
+    out.availability = "AVAILABLE"
+    out.request_status = "PASS"
     out.request_verified = True
     out.quota, out.quota_detail = codex_quota(codex)
     return out
@@ -342,21 +367,22 @@ def probe_anthropic() -> Result:
             out.error = "USER_SCOPED_AUTH_FAILURE: Claude Code não confirmou autenticação de assinatura"
             return out
 
+    out.subscription_login = "PASS"
     ok, out.model = verify_claude(claude, env)
     if not ok:
+        out.request_status = "FAILED"
         out.error = "login existe, mas a chamada mínima falhou"
         return out
 
-    out.subscription_login = "PASS"
+    out.availability = "AVAILABLE"
+    out.request_status = "PASS"
     out.request_verified = True
     out.quota = "UNSUPPORTED"
     return out
 
 
 def save(result: Result) -> Path:
-    root = Path.home() / "Downloads"
-    if not root.is_dir():
-        root = Path.cwd()
+    root = artifact_root()
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     path = root / f"pinker-harness-p0-auth-{stamp}.json"
     path.write_text(
@@ -374,7 +400,7 @@ def main() -> int:
     result = probe_openai() if provider == 0 else probe_anthropic()
     evidence = save(result)
 
-    if result.subscription_login == "PASS":
+    if result.subscription_login == "PASS" and result.request_verified:
         print(
             "Conta logada com sucesso! "
             f"Provedor: {result.provider}; "
@@ -383,7 +409,17 @@ def main() -> int:
         print(f"Evidência sanitizada: {evidence}")
         return 0
 
-    print(f"DISCARDED! Provedor: {result.provider}; motivo: {result.error}")
+    if result.subscription_login == "PASS":
+        print(
+            "Login preservado; chamada não verificada. "
+            f"Provedor: {result.provider}; "
+            f"availability: {result.availability}; "
+            f"request: {result.request_status}; motivo: {result.error}"
+        )
+        print(f"Evidência sanitizada: {evidence}")
+        return 1
+
+    print(f"Autenticação não confirmada. Provedor: {result.provider}; motivo: {result.error}")
     print(f"Evidência sanitizada: {evidence}")
     return 1
 

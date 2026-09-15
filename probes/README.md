@@ -26,6 +26,24 @@ Ele prefere reutilizar a autenticação oficial já existente no CLI. Se ela nã
 
 A API não é fallback do P0. Ela será validada separadamente.
 
+## P0 — failover por quota
+
+`p0_failover.py` prova a menor política de failover: mantém Anthropic, preserva
+`Auth: PASS` quando a saída real confirma quota esgotada e tenta a mesma marker
+em outra conta autorizada do provider.
+
+```bash
+python3 probes/p0_failover.py
+```
+
+Evidência de runtime usa `PINKER_HARNESS_ARTIFACT_ROOT`, ou
+`/tmp/pinker-harness-artifacts`; o probe recusa qualquer raiz dentro do checkout.
+Não há login, cópia de credenciais ou fallback cross-provider nesta fatia.
+
+Hipótese de P0: `FORJA SHOULD EVENTUALLY OWN EXECUTION_IDENTITY` e
+`HARNESS SHOULD OWN PROVIDER_ROUTING`; a allowlist de desenvolvimento não é a
+arquitetura definitiva.
+
 ### Resultado
 
 Por provider, o gate de assinatura é binário:
