@@ -1,6 +1,6 @@
 # Arquitetura proposta do Pinker Harness
 
-Status: **PROPOSTA COM DIRETRIZES DE PERSISTÊNCIA ACEITAS PELA FOUNDER**. Documento preparado em 2026-09-15 a partir das autoridades e do código abaixo. Em continuidade, a Founder aceitou estado persistente, com supervisor duradouro condicionado à necessidade, e determinou recuperação seletiva orientada a Tasks e ausência de arquivos operacionais Markdown. As seções 16–17 registram essas diretrizes, as correções sobre continuidade/reuso e a telemetria solicitada, distinguindo propostas de mecanismo ainda sujeitas a validação. O documento não declara H0.1–H0.7 executados nem aprovação integral de todas as escolhas de implementação.
+Status: **PROPOSTA COM DIRETRIZES DE PERSISTÊNCIA ACEITAS PELA FOUNDER**. Documento preparado em 2026-09-15 a partir das autoridades e do código abaixo. Em continuidade, a Founder aceitou estado persistente, com supervisor duradouro condicionado à necessidade, e determinou recuperação seletiva orientada a Tasks e ausência de arquivos operacionais Markdown. As seções 16–18 registram essas diretrizes, as correções sobre continuidade/reuso, a telemetria e a direção de reaproveitamento/autonomia solicitadas, distinguindo propostas de mecanismo ainda sujeitas a validação. O documento não declara H0.1–H0.7 executados nem aprovação integral de todas as escolhas de implementação.
 
 ## 1. Base factual e precedência
 
@@ -271,6 +271,8 @@ Não importar transcript integral, memória automática de outra sessão ou raci
 O cache do harness armazena referências e resultados com validade, não outra cartografia nem memória semântica. Uma alteração relevante invalida a evidência correspondente. Guardar o recibo do uso de Book evita repetir pesquisas e não substitui a atualização canônica do Book quando exigida.
 
 ## 10. Enforcement determinístico e autonomia
+
+A seção 18 detalha a autonomia como critério comportamental e a atribuição de interrupções por camada, incluindo o uso seletivo de MCP.
 
 Os modos herdados `OBSERVE`, `WORK` e `ELEVATED` descrevem conjuntos de efeitos permitidos, não filtros de assunto. Problemas de CI, Git, shell, container, rede e dependências podem ser investigados quando necessários à Task. Descobrir uma capacidade desconhecida não amplia a autorização para exercê-la.
 
@@ -740,3 +742,97 @@ Encaixe nas fases: H0.1 inventaria contratos e arquivos host-side; H0.2 formaliz
 | Telemetria parcial/desativada ou campo sensível | Cobertura/ausência declarada; sem falso “nunca utilizado”, sem vazamento e sem bloquear continuidade. |
 
 As capacidades desta seção são requisitos e desenho do sistema futuro. A atualização documental não migrou arquivos host-side, não instalou telemetria e não executou trocas reais de identidade/provider.
+
+## 18. Reaproveitamento dirigido, MCP GitHub e autonomia operacional
+
+Direção explícita da Founder em 2026-09-16: absorver os mecanismos úteis das referências públicas e adaptá-los ao projeto atual. A prioridade da experiência Claude é a autonomia útil durante a Task. O MCP GitHub usado no Codex é a única integração MCP inicialmente desejada; manter possibilidade de outros slots quando necessários. Isso não escolhe um fork-base nem transforma a Pinker em plataforma de agentes de propósito geral.
+
+### 18.1 Selecionar mecanismos por problema e evidência
+
+A lista abaixo registra hipóteses de reaproveitamento, não dependências obrigatórias. Referência de comportamento, uso de biblioteca, integração por protocolo e cópia de código são decisões diferentes. Um mecanismo só entra quando tiver necessidade concreta, autoridade de destino, interface, custo de manutenção e prova de benefício. Os cinco referenciais principais da #1 permanecem; Pi/Goose/Open Interpreter são fontes pontuais da proposta discutida, sem criar três projetos de integração adicionais.
+
+| Referência | Mecanismo a aproveitar | Adaptação e evidência exigida |
+| --- | --- | --- |
+| Claude Code | Continuidade de investigação, edição, testes e recuperação com poucas interrupções humanas | Converter em contrato comportamental independente de provider (§18.3); provar autonomia com Codex e Claude, sem enfraquecer obrigações. |
+| OpenCode | TUI com estado observável, steering e separação entre interface e execução | UI consome eventos da Task; fechar/reabrir a UI não perde progresso. Avaliar interfaces publicadas antes de copiar internals. |
+| Aider | Fluidez entre investigar e editar, diffs e seleção compacta de contexto | Git continua autoridade do código; commits seguem o contrato; Trama conserva navegação Pinker. Não importar repo-map concorrente nem commits automáticos como prova de conclusão. |
+| Codex CLI | Transporte/eventos estruturados e acesso GitHub solicitado | Adapter preserva política da Task, sessão e identidade; provar cobertura efetiva de execução e aprovações. Disponibilidade de MCP no produto não prova portabilidade de um conector específico. |
+| Gemini CLI | Recuperação antes de recomputação | Aproveitar o padrão somente quando conservar checkpoint/ownership da Forja e estado sujo; nenhum segundo lifecycle de workspace. |
+| Pi, como referência pontual | Descoberta compacta e carregamento progressivo de instruções | Catálogo e contratos operacionais JSON; regras obrigatórias entregues antes da ação; instruções opcionais recuperadas sob demanda. Não importar dependência operacional de SKILL.md. |
+| Goose, como referência pontual | Parametrização de procedimentos reutilizáveis | Receitas adaptadas aos passos, pré-condições e evidências da Task; sem incorporar o loop Goose ou tornar MCP obrigatório para Forja/Book/Trama. |
+| Open Interpreter, como referência pontual | Execução de ferramentas para engenharia além do código principal | Reter capacidades concretas conforme §17.7, com versão identificada; não importar outro executor geral só para executar scripts já cobertos. |
+
+Fontes documentais consultadas: [Aider — formatos de edição](https://aider.chat/docs/more/edit-formats.html), [Aider — Git](https://aider.chat/docs/git.html), [OpenCode — servidor](https://opencode.ai/docs/server/), [Pi — skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md) e [Goose — receitas](https://goose-docs.ai/docs/guides/recipes/). A documentação do Pi descreve nomes/descrições iniciais e leitura posterior pelo modelo; isso não é garantia de carregamento obrigatório. Copiar código exige verificar licença do componente/revisão; observar um comportamento não implica código disponível para extração.
+
+Para cada adoção, registrar de forma compacta: problema, fonte/revisão, mecanismo, componente receptor, fronteiras preservadas, adaptação necessária, custo estimado e cenário de aceite. Preferir uso/configuração de superfície existente; modificar ou extrair somente quando isso entregar benefício que a integração não oferece. A seleção depende de evidência e não da obrigação de absorver algo de cada projeto.
+
+### 18.2 MCP com GitHub como prioridade única inicial
+
+O nome “MCP GitHub do Codex” identifica a experiência solicitada pela Founder. A investigação deve resolver produto/conector, transporte, operações disponíveis, autenticação legítima e suporte na Forja; não presumir que a ferramenta hospedada nesta conversa seja um servidor instalável ou que o servidor MCP público do GitHub seja o mesmo produto.
+
+Contrato de integração:
+
+- Um slot inicial para o conector GitHub solicitado, quando comprovadamente disponível. Ausência dessa prova fica como lacuna identificada, não como integração concluída.
+- Coleção extensível de slots, sem número máximo arbitrário, servidores preinstalados ou catálogo inteiro carregado no contexto.
+- Cada slot descreve identidade, origem/versão, transporte suportado, referência de autenticação, estado, operações habilitadas e política. Segredos permanecem na autoridade de autenticação existente.
+- Registrar o ator GitHub efetivo separadamente do usuário do SO e da sessão do modelo. Não derivar acesso remoto apenas do nome amara/velina.
+- Expor somente operações habilitadas e pertinentes, com paginação, seleção de campos quando suportada e referências para conteúdo extenso.
+- Configurar/desabilitar um slot não modifica o contrato da Task nem invalida evidências remotas já preservadas.
+- Leitura, escrita de PR/issue, merge, release e exclusão são efeitos distintos. A presença do conector não concede autorização; concessões válidas da Task evitam reconfirmação das operações já autorizadas.
+- Usar a superfície MCP oferecida pelo executor quando ela cumprir política, observabilidade e identidade. Uma ponte do harness só é necessária se houver lacuna demonstrada; não manter dois clientes concorrentes controlando a mesma operação.
+
+A [documentação MCP do Codex](https://developers.openai.com/codex/mcp/) descreve servidores configuráveis e seleção de ferramentas; isso é evidência da superfície geral, não da instalação local nem do conector GitHub específico. Se o conector desejado não estiver disponível, uma rota GitHub já autorizada e equivalente pode manter a Task avançando, declarando a diferença; não instalar ou substituir silenciosamente por outro MCP. Nenhum fallback contorna restrições do conector ou da conta.
+
+Indisponibilidade de um slot restringe as ações que dependem dele; não impede tarefas locais independentes. Slots adicionais entram por necessidade concreta. Forja, Trama e Book mantêm suas interfaces canônicas, sem conversão obrigatória para MCP.
+
+### 18.3 Autonomia como propriedade verificável
+
+Requisito de produto: dada uma Task suficientemente especificada e autorizada, o executor investiga, implementa, testa, corrige, consulta evidências e avança pelos passos até o terminal aplicável ou um bloqueio real. Não devolve uma oferta de continuar quando a continuação já faz parte da missão.
+
+O relato da Founder é de confirmações excessivas no Codex mesmo em “YOLO mode”. Esse é um problema observado pela usuária, cuja causa local ainda não foi inspecionada. Não atribuir toda interrupção ao modelo ou tratar nome de modo como prova da política efetiva.
+
+| Origem da interrupção | Diagnóstico e ação do harness |
+| --- | --- |
+| Modelo pergunta em prosa se deve realizar trabalho já contratado | Entregar obrigações e autorização vigentes; registrar interrupção redundante no ensaio. Não fingir resposta humana. |
+| CLI/provider emite pedido estruturado de aprovação | Conferir operação contra a concessão aplicável e usar a interface oficial de política/decisão quando suportada; pedir decisão nova somente se ela for realmente necessária. |
+| Sandbox/Forja impede acesso necessário | Conferir recursos declarados, identidade e política efetiva. Corrigir configuração dentro da autoridade existente; não desligar isolamento para encobrir a causa. |
+| MCP/serviço externo exige autenticação ou decisão própria | Identificar a exigência real. Não classificar como receio do modelo nem responder automaticamente a consentimento externo não concedido. |
+| Regra do projeto reserva decisão humana ou falta dado material irrecuperável | Preservar a condição, preparar resultado concreto e explicar a decisão necessária. |
+| Gate falhou ou busca não resolveu dificuldade | Continuar diagnóstico e correção autorizados no passo; falha de gate não é, por si só, novo pedido de permissão. |
+
+A [referência de configuração do Codex](https://developers.openai.com/codex/config-reference/) distingue política de aprovação, sandbox e políticas de ferramentas/apps. Configuração de aprovação não estabelece, sozinha, se o modelo fará uma pergunta em linguagem natural. H0.1 deve observar versão, configuração efetiva e evento causador, sem ler segredos. O CLI Codex não estava disponível neste ambiente de análise; nenhuma correção de “YOLO” foi executada ou comprovada aqui.
+
+Concessões pertencem ao contrato da Task, com recurso, ação, limites e validade. Na retomada, reutilizar as ainda aplicáveis ao destino; autorizações pessoais/de conta não são transferidas por suposição. Decisões já dadas não são solicitadas outra vez só porque mudou a sessão. A mudança de provider não redefine passos cumpridos nem cria obrigação nova de aprovação.
+
+Uma aprovação técnica pode ser satisfeita pelo controlador somente quando uma autorização existente cobre integralmente a ação e a interface admite essa decisão. Isso registra uso da concessão, não uma nova decisão da Founder. Não responder “sim” indiscriminadamente, fabricar consentimento, alterar instruções para contornar controles nem desabilitar gates.
+
+O controlador pode lembrar ao executor a próxima obrigação e uma autorização existente, por superfície oficial, quando a evidência for suficiente. Não deve implementar um loop ilimitado de “continue”: insistência repetida sem avanço é falha comportamental a medir, com gasto de quota registrado. Quando não for possível provar que a pergunta é redundante, não fabricar classificação determinística.
+
+### 18.4 Avaliar progresso útil, interrupções e limites juntos
+
+Autonomia exige duas propriedades simultâneas: completar trabalho autorizado sem supervisão cerimonial e respeitar as decisões efetivamente reservadas. “Nenhuma pergunta” com abandono silencioso, ações indevidas ou falsa conclusão reprova o ensaio.
+
+| Cenário | Aceite observável |
+| --- | --- |
+| Implementação delimitada com edição, build, teste e correção | Contrato concluído, evidências válidas e zero confirmação redundante para ações já autorizadas. |
+| Ferramenta falha por sintaxe/path e há recuperação permitida | Consulta exigida ao Book, descoberta da interface, correção e continuidade sem pedir permissão para investigar. |
+| Book/memória/Trama não oferecem resposta suficiente | Investigação delimitada prossegue; ausência de registro não encerra a Task. |
+| Escrita GitHub explicitamente autorizada no escopo do ensaio | Operação acontece e seu resultado é verificado, sem reconfirmação; leituras independentes continuam se uma escrita estiver bloqueada. |
+| Operação GitHub fora da concessão | Ação não ocorre; o pedido necessário identifica efeito e motivo concreto. |
+| Quota/reinício/troca de usuário ou provider | Mantém Task, obrigações, revisão válida e concessões aplicáveis; não reinicia bootstrap nem interrogatório de autorização. |
+| Slot MCP opcional indisponível | Trabalho independente continua; falha é atribuída ao slot, sem sucesso inventado. |
+| Codex pede para continuar trabalho já autorizado | Detectar no ensaio como redundância, atribuir origem quando possível e corrigir a camada responsável; não declarar autonomia demonstrada. |
+
+Medir por execução: cumprimento das obrigações, correção das evidências, intervenções humanas necessárias e redundantes, origem das interrupções, tempo bloqueado, retries, reexecuções evitadas e consumo de contexto/quota quando observável. Registrar resultado desconhecido quando não houver medição; não produzir porcentagem fictícia.
+
+Comparar Codex e Claude com contrato, estado inicial, recursos e critérios equivalentes, em ambientes isolados. A versão do modelo/provider e os limites de quota são registrados. Classificação semântica de perguntas pode exigir revisão; não vender busca por uma frase como detector confiável de falta de autonomia.
+
+O sucesso do Codex nesse cenário comprova o critério de autonomia avaliado. Não comprova sozinho todos os requisitos da TUI/harness, especialmente durabilidade, identidade e isolamento, que têm ensaios próprios. O harness controla ferramentas, contexto e política, mas não garante transformar qualquer modelo em outro; autonomia restante é hipótese comportamental a verificar.
+
+### 18.5 Entrega dentro da fundação existente
+
+H0.1 identifica a rota exata GitHub e as causas/superfícies de aprovação nos providers reais. H0.2 acrescenta os contratos de slots, concessões e eventos de interrupção. H0.3 inclui uma Task interativa completa com autonomia observável. H0.4 verifica permissões concedidas e limites negados. H0.5 integra GitHub e descoberta seletiva. H0.6 preserva essas propriedades nas transferências. H0.7 mantém os cenários de regressão acima.
+
+Não começar pela TUI completa nem pelo transplante de múltiplos loops. A primeira entrega deve permitir executar e retomar uma Task real, com interface útil, registros consultáveis e políticas verificadas. Recursos visuais adicionais e novas integrações precisam demonstrar utilidade nesse fluxo.
+
+Esta seção registra a direção autorizada e o desenho de adaptação. Não declara conector instalado, autonomia Codex comprovada, código externo incorporado ou fases H0 concluídas.
